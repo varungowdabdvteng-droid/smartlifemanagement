@@ -11,8 +11,8 @@
 
 @layer base {
   body {
-    background-color: var(--color-dark-bg);
-    color: #E2E4E9;
+    background-color: #F8FAFC;
+    color: #0F172A;
   }
   .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;

@@ -11,6 +11,7 @@ import {
   TaskStatus, 
   GroceryItem, 
   DietLog, 
+  WorkoutLog, 
   Notification, 
   ActivityLog 
 } from "./types";
@@ -38,12 +39,12 @@ const INITIAL_TASKS: Task[] = [
 ];
 
 const INITIAL_GROCERY: GroceryItem[] = [
-  { item_id: 1, user_id: 1, item_name: "Whole Milk (2L)", quantity: 0, threshold_level: 1, category: "Dairy", created_at: "2026-06-08" },
-  { item_id: 2, user_id: 1, item_name: "Organic Eggs (12pk)", quantity: 2, threshold_level: 3, category: "Dairy", created_at: "2026-06-08" },
-  { item_id: 3, user_id: 1, item_name: "Sourdough Bread", quantity: 1, threshold_level: 1, category: "Pantry", created_at: "2026-06-08" },
-  { item_id: 4, user_id: 1, item_name: "Green Apples", quantity: 8, threshold_level: 4, category: "Produce", created_at: "2026-06-08" },
-  { item_id: 5, user_id: 1, item_name: "Beef Ribeye Steak", quantity: 0, threshold_level: 2, category: "Meat", created_at: "2026-06-08" },
-  { item_id: 6, user_id: 1, item_name: "Oat Milk Carton", quantity: 1, threshold_level: 2, category: "Dairy", created_at: "2026-06-08" },
+  { item_id: 1, user_id: 1, item_name: "Whole Milk (2L)", quantity: 0, threshold_level: 1, category: "Dairy", created_at: "2026-06-08", sensor_weight_g: 0, original_weight_g: 2000, sensor_enabled: true, automatic_restock: true },
+  { item_id: 2, user_id: 1, item_name: "Organic Eggs (12pk)", quantity: 2, threshold_level: 3, category: "Dairy", created_at: "2026-06-08", sensor_weight_g: 100, original_weight_g: 600, sensor_enabled: true, automatic_restock: true },
+  { item_id: 3, user_id: 1, item_name: "Sourdough Bread", quantity: 9, threshold_level: 2, category: "Pantry", created_at: "2026-06-08", sensor_weight_g: 450, original_weight_g: 500, sensor_enabled: true, automatic_restock: false },
+  { item_id: 4, user_id: 1, item_name: "Green Apples", quantity: 8, threshold_level: 4, category: "Produce", created_at: "2026-06-08", sensor_weight_g: 960, original_weight_g: 1200, sensor_enabled: false, automatic_restock: false },
+  { item_id: 5, user_id: 1, item_name: "Beef Ribeye Steak", quantity: 0, threshold_level: 2, category: "Meat", created_at: "2026-06-08", sensor_weight_g: 0, original_weight_g: 800, sensor_enabled: true, automatic_restock: true },
+  { item_id: 6, user_id: 1, item_name: "Oat Milk Carton", quantity: 3, threshold_level: 2, category: "Dairy", created_at: "2026-06-08", sensor_weight_g: 250, original_weight_g: 1000, sensor_enabled: true, automatic_restock: true },
 ];
 
 const INITIAL_DIET: DietLog[] = [
@@ -63,6 +64,12 @@ const INITIAL_ACTIVITIES: ActivityLog[] = [
   { activity_id: 1, user_id: 1, activity_type: "Task Action", description: "User Alex Rivers changed task 'Evening Cardio' status to Done.", timestamp: "2026-06-08 14:22" },
   { activity_id: 2, user_id: 1, activity_type: "Grocery Trg", description: "Automated trigger 'trg_grocery_low_stock' registered Whole Milk as OUT OF STOCK.", timestamp: "2026-06-08 11:10" },
   { activity_id: 3, user_id: 1, activity_type: "Security System", description: "Salted credential keys validated successfully. JWT issued.", timestamp: "2026-06-08 09:12" },
+];
+
+const INITIAL_WORKOUTS: WorkoutLog[] = [
+  { workout_id: 1, user_id: 1, workout_type: "Strength Weights Training", duration_minutes: 45, calories_burned: 320, log_date: "2026-06-08" },
+  { workout_id: 2, user_id: 1, workout_type: "Cardio Running Speed", duration_minutes: 30, calories_burned: 390, log_date: "2026-06-08" },
+  { workout_id: 3, user_id: 1, workout_type: "Swimming session", duration_minutes: 40, calories_burned: 310, log_date: "2026-06-07" },
 ];
 
 export default function App() {
@@ -98,6 +105,11 @@ export default function App() {
     return cached ? JSON.parse(cached) : INITIAL_ACTIVITIES;
   });
 
+  const [workouts, setWorkouts] = useState<WorkoutLog[]>(() => {
+    const cached = localStorage.getItem("slms_workouts");
+    return cached ? JSON.parse(cached) : INITIAL_WORKOUTS;
+  });
+
   // Sync state modifications to client localStorage
   useEffect(() => {
     localStorage.setItem("slms_tasks", JSON.stringify(tasks));
@@ -110,6 +122,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("slms_diets", JSON.stringify(diets));
   }, [diets]);
+
+  useEffect(() => {
+    localStorage.setItem("slms_workouts", JSON.stringify(workouts));
+  }, [workouts]);
 
   useEffect(() => {
     localStorage.setItem("slms_notifications", JSON.stringify(notifications));
@@ -187,7 +203,16 @@ export default function App() {
   };
 
   // B. Grocery CRUD & Live Triggers
-  const handleAddGroceryItem = (item: { item_name: string; category: string; quantity: number; threshold_level: number }) => {
+  const handleAddGroceryItem = (item: { 
+    item_name: string; 
+    category: string; 
+    quantity: number; 
+    threshold_level: number;
+    sensor_weight_g?: number;
+    original_weight_g?: number;
+    sensor_enabled?: boolean;
+    automatic_restock?: boolean;
+  }) => {
     const newItemObj: GroceryItem = {
       item_id: Date.now(),
       user_id: currentUser?.user_id || 1,
@@ -196,14 +221,125 @@ export default function App() {
       quantity: item.quantity,
       threshold_level: item.threshold_level,
       created_at: new Date().toISOString().substring(0, 10),
+      sensor_weight_g: item.sensor_weight_g ?? (item.sensor_enabled ? item.original_weight_g : undefined),
+      original_weight_g: item.original_weight_g,
+      sensor_enabled: item.sensor_enabled ?? false,
+      automatic_restock: item.automatic_restock ?? false,
     };
     setGroceryItems((prev) => [newItemObj, ...prev]);
-    addActivity("Pantry System", `Stored recipe ${item.item_name} (Qty: ${item.quantity}) in cupboards.`);
+    addActivity("Pantry System", `Registered ${item.item_name} (Stock: ${item.quantity}).`);
     
-    // Low stock trigger check
     if (item.quantity <= item.threshold_level) {
-      addNotification(`Low Stock Trigger: ${item.item_name} warning limit reached!`, "Grocery Alert");
+      addNotification(`Low Stock Trigger: ${item.item_name} fell below threshold limit!`, "Grocery Alert");
     }
+  };
+
+  const handleUpdateGrocerySensorWeight = (itemId: number, weightG: number) => {
+    setGroceryItems((prev) =>
+      prev.map((g) => {
+        if (g.item_id === itemId) {
+          const orig = g.original_weight_g || 1000;
+          const pct = Math.round((weightG / orig) * 100);
+          const computedQty = Math.ceil((weightG / orig) * 10);
+          const isDanger = pct <= 20;
+
+          if (isDanger && g.sensor_weight_g !== undefined && Math.round((g.sensor_weight_g / orig) * 100) > 20) {
+            addNotification(`Scale Warning Alert: Refrigerator scale detected '${g.item_name}' weight fell to ${weightG}g (${pct}% remaining)!`, "Grocery Alert");
+            addActivity("Scale Monitor", `Database trigger notified deficit stock level for ${g.item_name} via smart sensor.`);
+
+            if (g.automatic_restock) {
+              setTimeout(() => {
+                setGroceryItems((latestItems) =>
+                  latestItems.map((item) => {
+                    if (item.item_id === itemId) {
+                      addNotification(`AI Companion Autopilot: Dispatched automatic restocking drone request for '${item.item_name}'. Replaced package weight reset to ${item.original_weight_g}g.`, "System");
+                      addActivity("AI Auto-replenish", `Autonomous trigger replenished product ${item.item_name} to 100% capacity.`);
+                      return { ...item, sensor_weight_g: item.original_weight_g, quantity: 10 };
+                    }
+                    return item;
+                  })
+                );
+              }, 2000);
+            }
+          }
+          return { ...g, sensor_weight_g: weightG, quantity: computedQty };
+        }
+        return g;
+      })
+    );
+  };
+
+  const handleRunAITaskEvaluator = () => {
+    const W = currentUser?.weight || 75;
+    const cond = currentUser?.condition || "Active Health Maintenance";
+
+    let targetProtein = 140;
+    if (cond.includes("Loss") || cond.includes("Toning")) targetProtein = Math.round(2.2 * W);
+    else if (cond.includes("Muscle") || cond.includes("Power")) targetProtein = Math.round(2.0 * W);
+    else if (cond.includes("Endurance")) targetProtein = Math.round(1.6 * W);
+    else targetProtein = Math.round(1.5 * W);
+
+    const todayMeals = diets.filter((d) => d.log_date === "2026-06-08");
+    const todayWorkouts = workouts.filter((w) => w.log_date === "2026-06-08");
+    const currentProtein = todayMeals.reduce((sum, d) => sum + d.protein, 0);
+
+    const genList: { name: string; desc: string; priority: TaskPriority }[] = [];
+    
+    if (currentProtein < targetProtein) {
+      const short = targetProtein - currentProtein;
+      genList.push({
+        name: `AI Macro Lock: Consume ${short}g extra Protein`,
+        desc: `Autonomously dispatched because your daily logged intake is ${currentProtein}g, leaving a shortfall of ${short}g against your body weight requirements.`,
+        priority: TaskPriority.HIGH
+      });
+    }
+
+    if (todayWorkouts.length === 0) {
+      genList.push({
+        name: `AI Cardio/Drill adaptation standard: ${cond}`,
+        desc: `Autonomous drill to stimulate physiological updates required to secure target composition: ${cond}.`,
+        priority: TaskPriority.MEDIUM
+      });
+    }
+
+    // Grocery low safety limits
+    const depletedGroceries = groceryItems.filter(g => {
+      if (g.sensor_enabled && g.sensor_weight_g !== undefined) {
+        return (g.sensor_weight_g / (g.original_weight_g || 1000)) <= 0.2;
+      }
+      return g.quantity <= g.threshold_level;
+    });
+
+    depletedGroceries.forEach(g => {
+      genList.push({
+        name: `AI Auto-Restock Action: Supply ${g.item_name}`,
+        desc: `Triggered by weight sensors showing '${g.item_name}' is currently at a critical low capacity.`,
+        priority: TaskPriority.MEDIUM
+      });
+    });
+
+    let newTasksCount = 0;
+    genList.forEach(g => {
+      // Avoid duplicate task creations
+      const duplicate = tasks.some(t => t.task_name === g.name);
+      if (!duplicate) {
+        const newTask: Task = {
+          task_id: Date.now() + Math.floor(Math.random() * 100000),
+          user_id: currentUser?.user_id || 1,
+          task_name: g.name,
+          description: g.desc,
+          priority: g.priority,
+          deadline: "2026-06-08",
+          status: TaskStatus.TO_DO,
+          created_at: "2026-06-08"
+        };
+        setTasks(prev => [newTask, ...prev]);
+        newTasksCount++;
+      }
+    });
+
+    addNotification(`AI Advisor evaluated metrics: dished out ${newTasksCount} dynamic chore reminders. Zero human scheduling details required!`, "System");
+    addActivity("AI Evaluator", `Autopilot scheduler dispatched ${newTasksCount} target specific wellness requirements dynamically.`);
   };
 
   const handleUpdateGroceryQuantity = (itemId: number, quantity: number) => {
@@ -252,6 +388,28 @@ export default function App() {
     }
   };
 
+  const handleAddWorkout = (workout: { workout_type: string; duration_minutes: number; calories_burned: number; log_date: string }) => {
+    const newWorkoutObj: WorkoutLog = {
+      workout_id: Date.now(),
+      user_id: currentUser?.user_id || 1,
+      workout_type: workout.workout_type,
+      duration_minutes: workout.duration_minutes,
+      calories_burned: workout.calories_burned,
+      log_date: workout.log_date,
+    };
+    setWorkouts((prev) => [newWorkoutObj, ...prev]);
+    addActivity("Fitness System", `Logged active workout: ${workout.workout_type} (burned ${workout.calories_burned} kcal).`);
+    addNotification(`Active Calorie Burn: Burned ${workout.calories_burned} kcal doing ${workout.workout_type}!`, "Fitness");
+  };
+
+  const handleDeleteWorkout = (workoutId: number) => {
+    const term = workouts.find((w) => w.workout_id === workoutId);
+    setWorkouts((prev) => prev.filter((w) => w.workout_id !== workoutId));
+    if (term) {
+      addActivity("Fitness System", `Removed workout entry: ${term.workout_type}.`);
+    }
+  };
+
   // D. Notification actions
   const handleMarkAsRead = (notificationId: number) => {
     setNotifications((prev) =>
@@ -279,17 +437,29 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleLoginSuccess = (user: { user_id: number; full_name: string; email: string; role: string }) => {
+  const handleLoginSuccess = (user: { 
+    user_id: number; 
+    full_name: string; 
+    email: string; 
+    role: string;
+    phone?: string;
+    weight?: number;
+    condition?: string;
+    weekly_diet?: string;
+  }) => {
     const fullUserObj: User = {
       user_id: user.user_id,
       full_name: user.full_name,
       email: user.email,
-      phone: "+1 (555) 012-3456",
+      phone: user.phone || "+1 (555) 012-3456",
       role: user.role,
       created_at: "2026-06-08",
+      weight: user.weight || 75,
+      condition: user.condition || "Active Health Maintenance",
+      weekly_diet: user.weekly_diet || "High-Protein Balanced Plan",
     };
     setCurrentUser(fullUserObj);
-    addActivity("Security Gate", `Auth successfully granted for ${user.full_name}. session_token allocated.`);
+    addActivity("Security Gate", `Auth successfully granted for ${user.full_name}. Profile customized with ${fullUserObj.weekly_diet}.`);
   };
 
   const handleLogout = () => {
@@ -364,6 +534,7 @@ export default function App() {
               tasks={tasks}
               groceryItems={groceryItems}
               diets={diets}
+              workouts={workouts}
               activities={activities}
               onTabChange={setActiveTab}
               currentUser={currentUser}
@@ -376,6 +547,7 @@ export default function App() {
               onAddTask={handleAddTask}
               onUpdateStatus={handleUpdateTaskStatus}
               onDeleteTask={handleDeleteTask}
+              onRunAITaskEvaluator={handleRunAITaskEvaluator}
             />
           )}
 
@@ -385,6 +557,7 @@ export default function App() {
               onAddGroceryItem={handleAddGroceryItem}
               onUpdateGroceryQuantity={handleUpdateGroceryQuantity}
               onDeleteGroceryItem={handleDeleteGroceryItem}
+              onUpdateGrocerySensorWeight={handleUpdateGrocerySensorWeight}
             />
           )}
 
@@ -392,6 +565,10 @@ export default function App() {
             <DietPage
               diets={diets}
               onAddMeal={handleAddMeal}
+              workouts={workouts}
+              onAddWorkout={handleAddWorkout}
+              onDeleteWorkout={handleDeleteWorkout}
+              currentUser={currentUser}
             />
           )}
 

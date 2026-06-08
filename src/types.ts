@@ -10,6 +10,9 @@ export interface User {
   phone: string;
   role: string;
   created_at: string;
+  weight?: number;
+  condition?: string;
+  weekly_diet?: string;
 }
 
 export enum TaskPriority {
@@ -43,6 +46,10 @@ export interface GroceryItem {
   threshold_level: number;
   category: string;
   created_at: string;
+  sensor_weight_g?: number; // current weight in grams
+  original_weight_g?: number; // package full capacity in grams
+  sensor_enabled?: boolean; // toggle weight sensor for this staple
+  automatic_restock?: boolean; // toggle AI-driven auto-ordering
 }
 
 export interface DietLog {
@@ -71,11 +78,21 @@ export interface ActivityLog {
   timestamp: string;
 }
 
+export interface WorkoutLog {
+  workout_id: number;
+  user_id: number;
+  workout_type: string;
+  duration_minutes: number;
+  calories_burned: number;
+  log_date: string;
+}
+
 export interface SLMSDatabase {
   users: User[];
   tasks: Task[];
   grocery: GroceryItem[];
   diet: DietLog[];
+  workouts: WorkoutLog[];
   notifications: Notification[];
   activities: ActivityLog[];
 }
